@@ -2,6 +2,8 @@ import { Router } from "express";
 import * as User from "./user.controller.js";
 import checkLogin from "../../middlewares/checkLogin.js";
 import checkAdmin from "../../middlewares/checkAdmin.js";
+import { calcBollingerBands } from "../../services/indicators.js";
+
 const router = new Router();
 
 //Get all users
@@ -79,4 +81,20 @@ router.route("/symbols").get(async (req, res) => {
       .json({ error: "Không thể lấy danh sách symbol từ Binance" });
   }
 });
+
+router.post("/bollinger", async (req, res) => {
+  const { candles } = req.body;
+  if (!candles || !Array.isArray(candles)) {
+    return res.status(400).json({ error: "Candles is required." });
+  }
+
+  try {
+    const bands = calcBollingerBands(candles);
+    res.json(bands);
+  } catch (err) {
+    console.error("Lỗi tính BB:", err.message);
+    res.status(500).json({ error: "Lỗi tính Bollinger Bands." });
+  }
+});
+
 export default router;
