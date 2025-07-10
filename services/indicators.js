@@ -1,4 +1,4 @@
-import { BollingerBands } from "technicalindicators";
+import { BollingerBands, RSI } from "technicalindicators";
 
 export function calcBollingerBands(candles, period = 20, stdDev = 2) {
   const closes = candles.map((c) => c.close);
@@ -15,4 +15,16 @@ export function calcBollingerBands(candles, period = 20, stdDev = 2) {
     middle: b.middle,
     upper: b.upper,
   }));
+}
+
+export function calcRSI(candles, period = 14) {
+  const closes = candles.map((c) => c.close);
+  const values = RSI.calculate({ values: closes, period });
+
+  return values
+    .map((value, i) => ({
+      time: candles[i + period]?.time,
+      value,
+    }))
+    .filter((d) => d.time);
 }

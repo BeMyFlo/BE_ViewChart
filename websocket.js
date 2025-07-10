@@ -1,5 +1,6 @@
 // websocket.js
 import { WebSocketServer } from "ws";
+import { RSI } from "technicalindicators";
 import fetch from "node-fetch";
 
 const clients = new Map();
@@ -84,29 +85,41 @@ function groupClientsByChart() {
   }
   return groups;
 }
-
+const candleBuffers = {};
 async function broadcastChartCandles() {
   const groups = groupClientsByChart();
 
   for (const key of Object.keys(groups)) {
     const [symbol, interval] = key.split("|");
     const data = await fetchLatestCandle(symbol, interval);
-
     if (!data) continue;
+
+    const candle = {
+      time: data.candle.time,
+      open: data.candle.open,
+      high: data.candle.high,
+      low: data.candle.low,
+      close: data.candle.close,
+    };
+
+    if (!candleBuffers[key]) candleBuffers[key] = [];
+    const buffer = candleBuffers[key];
+    buffer.push({ time: candle.time, close: candle.close });
+    if (buffer.length > 100) buffer.shift();
+
+    const closes = buffer.map((c) => c.close);
+    const rsiArr = RSI.calculate({ period: 14, values: closes });
+    const rsiValue = rsiArr[rsiArr.length - 1];
 
     const payload = JSON.stringify({
       type: "candleUpdate",
       data: {
-        ...data.candle,
-        symbol: data.symbol,
-        interval: data.interval,
+        ...candle,
+        symbol,
+        interval,
+        rsi: rsiValue,
       },
     });
-
-    // const subscribers = groups[key].filter((ws) => ws.readyState === ws.OPEN);
-    // console.log(
-    //   `📊 Gửi candle cho ${symbol} ${interval} → ${subscribers.length} clients`
-    // );
 
     for (const ws of groups[key]) {
       if (ws.readyState === ws.OPEN) {
