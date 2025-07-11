@@ -2,6 +2,7 @@
 import { WebSocketServer } from "ws";
 import { RSI } from "technicalindicators";
 import fetch from "node-fetch";
+import { calcBollingerBands } from "./services/indicators.js";
 
 const clients = new Map();
 
@@ -28,6 +29,14 @@ export default function initWebSocket(server) {
             symbol: data.symbol,
             interval: data.interval,
           };
+
+          if (data.candles && Array.isArray(data.candles)) {
+            const key = `${data.symbol}|${data.interval}`;
+            candleBuffers[key] = data.candles.map(c => ({
+              time: c.time,
+              close: c.close
+            }));
+          }
         }
       } catch (err) {
         console.error("❌ WS parse error:", err.message);
@@ -85,6 +94,7 @@ function groupClientsByChart() {
   }
   return groups;
 }
+
 const candleBuffers = {};
 async function broadcastChartCandles() {
   const groups = groupClientsByChart();
@@ -111,6 +121,15 @@ async function broadcastChartCandles() {
     const rsiArr = RSI.calculate({ period: 14, values: closes });
     const rsiValue = rsiArr[rsiArr.length - 1];
 
+    // Tính Bollinger Bands nếu đủ nến
+    let bollinger = null;
+    if (buffer.length >= 20) {
+      const bands = calcBollingerBands(buffer, 20, 2);
+      if (bands.length > 0) {
+        bollinger = bands[bands.length - 1];
+      }
+    }
+
     const payload = JSON.stringify({
       type: "candleUpdate",
       data: {
@@ -118,6 +137,7 @@ async function broadcastChartCandles() {
         symbol,
         interval,
         rsi: rsiValue,
+        bollinger: bollinger,
       },
     });
 
